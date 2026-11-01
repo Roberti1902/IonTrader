@@ -1,0 +1,260 @@
+# IonTrader – Gameplan
+
+**Ziel:** Ticker eingeben → Live-Chart mit Overlays → alle 5 Sekunden Bullish/Bearish-Wahrscheinlichkeit und Risiko für +1 Tag, +7 Tage, +1 Monat, +6 Monate, +1 Jahr, gelernt aus der Vergangenheit genau dieser Aktie.
+
+**Verbindliche Grundlage:** deine IonTrader-Notizen, deine fünf Phasen, deine erste Nachricht und das Chart-Pattern-Bild. Abschnitt 4 belegt Punkt für Punkt, wo jede Vorgabe umgesetzt wird.
+
+---
+
+## 1. Wie alles zusammenhängt
+
+Deine Punkte sind keine lose Tool-Liste, sondern eine Kette. Jede Stufe liefert der nächsten ihren Input.
+
+```text
+THESE       Fraktale Markthypothese: Märkte haben Gedächtnis, Muster wiederholen sich über Timeframes
+               │
+MESSEN         ├─ Hurst/DFA je Timeframe: Gibt es dieses Gedächtnis bei diesem Ticker gerade?
+               │     H > 0,5 → Trend hält an  → Momentum zählt
+               │     H < 0,5 → Trend kehrt um → Mean Reversion zählt
+               ├─ Bollinger, Z-Score, Fibonacci: Wie weit ist der Kurs vom Mittelwert/Niveau entfernt?
+               └─ 20 Chartmuster: diskrete Ereignisse mit Entry, SL, TP
+               │
+ALPHA          ├─ Pattern-Matching: Muster wiederholen sich → direkt nachgeschlagen
+               ├─ LSTM/GRU: Gedächtnis → gelernt
+               └─ Transformer/TFT: Beziehung beliebig ferner Kurspunkte → gelernt per Attention
+               │
+RISIKO         Monte Carlo: Millionen Pfade mit erhaltenem Gedächtnis, Peer-Schocks aus dem Graphen
+               │
+MATRIX         Alle Signale → gewichtet und kalibriert → 68 % Bullish / 32 % Bearish je Horizont
+               │
+DASHBOARD      Chart, Overlays, Matrix, Risiko, 5-Sekunden-Takt
+```
+
+Daraus folgen drei Querverbindungen:
+
+- **Hurst ist der Schalter zwischen deinen beiden Thesen.** Fraktalität und Mean Reversion/Momentum sind dieselbe Frage: Hält die Bewegung an oder kehrt sie um? (Hypothese; bei META nicht bestätigt, siehe Abschnitt 6.)
+- **Das Bild liefert die Bewertungsregel.** Jedes Muster hat Entry, SL und TP. Damit lässt sich exakt zählen, was zuerst getroffen wurde.
+- **Matching und neuronale Netze prüfen sich gegenseitig.** Stimmen sie nicht überein, sinkt die angezeigte Verlässlichkeit.
+
+---
+
+## 2. Spannungen in den Vorgaben und ihre Auflösung
+
+| # | Vorgabe | Befund | Entscheidung |
+|---|---|---|---|
+| 1 | „Millionen historische Sequenzen von Meta“ im 5-Minuten-Verlauf | 5m seit 2016 ergibt nur rund 212.000 Bars | Fraktaler Ansatz: normierte Fenster über 1m bis 1D ergeben rund 1,3 Mio., mit 3 Fensterlängen rund **3,9 Mio. Sequenzen**. Zusätzlich speichern wir 1m als Basis. |
+| 2 | Überlappende Sequenzen | Sie sind fast identisch und zählen nicht als unabhängige Beispiele | Matching dedupliziert per Mindestabstand und zeigt die effektive Fallzahl an |
+| 3 | Vorhersage für 1 Jahr aus Meta-Daten | Nur rund 14 unabhängige Jahre, 6 Monate: rund 29, 1 Monat: rund 170, 7 Tage: rund 750, 1 Tag: rund 3.600 | Reines Meta-Training bleibt. Zusätzlich läuft Training auf liquiden US-Aktien plus Feinschliff auf den Ticker. Die Messung entscheidet. |
+| 4 | C++ für „extrem schnelle Execution“ | Bei 5-Sekunden-Takt zählt keine Mikrosekunde, und in deinen Phasen steht keine Orderausführung | C++ wird der **Rechenkern**: geht jeden Bar einzeln durch, identisch in Historie und Live. Es werden keine Orders gesendet. |
+| 5 | „TFT oder LSTM“, dazu GRU und Transformer | Alle stehen in deinen Notizen | **Alle vier** werden trainiert, gemessen und als Ensemble kombiniert |
+| 6 | Datenquellen | Yahoo: 5m nur rund 60 Tage. Binance: nur Krypto, kein META. IB: echte 5-Sekunden-Bars, aber Konto und Marktdaten-Abo nötig. Polygon: kostenpflichtig | **Yahoo** für Tagesdaten, **Alpaca** für 1m seit 2016 und Live-Trades. Ohne Key läuft der Yahoo-Modus. |
+| 7 | Echtzeit-5-Sekunden-Daten | Alpaca liefert Einzel-Trades, frei nur von IEX (rund 2,5 % des Volumens) | Trades → selbst gebaute 5-Sekunden-Bars. Intraday-Volumen sieht das Modell erst nach 16 Minuten, in Training und Live gleich, weil dann die Vollmarkt-Daten (SIP) da sind |
+| 8 | SQLite oder TimescaleDB | TimescaleDB braucht einen Server | **SQLite**, ohne Installation |
+| 9 | Relationale und Graph-Datenbank | Für Aladdin sind Monte Carlo und Szenarien belegt, eine Graph-DB konnte ich nicht belegen. Sinnvoll bleibt die Idee trotzdem | `nodes`- und `edges`-Tabellen in derselben SQLite-Datei; kein Neo4j-Server |
+| 10 | PyTorch oder TensorFlow | TensorFlow unterstützt die Windows-GPU nativ seit Version 2.11 nicht mehr (aus meinem Wissen) | **PyTorch** |
+| 11 | Dash oder PyQt | Beides genügt | **Dash/Plotly**, „Overlay“ = zuschaltbare Ebenen im Chart |
+| 12 | Fraktale Hypothese und Fibonacci als gesetzt | Die Belege für Hurst-Effekte sind gemischt und hängen vom Schätzverfahren ab | Alles wird gebaut, aber **pro Ticker getestet**. Der Thesen-Report zeigt, ob es hier wirkt |
+| 13 | Deine Phasen enthalten kein Backtesting | Ohne das ist „68 %“ nur eine Behauptung | Purged Walk-Forward und Kalibrierung in Phase 5 |
+| 14 | Risiko, C++, 20 Muster, Fraktal fehlen in den Phasen | Sie stehen aber in den Notizen | Eingearbeitet; Risiko bekommt eine eigene Phase |
+| 15 | „100 %“ | Umsetzung ja, Treffsicherheit nein | Jede Vorgabe wird gebaut. Die Trefferquote wird offen gemessen und angezeigt, auch wenn sie keinen Vorsprung zeigt |
+
+**Reihenfolge:** Deine fünf Phasen bleiben erhalten. Die Risiko-Säule kommt als neue Phase 4 davor, weil die Matrix ihre Ergebnisse braucht. Deine Phase 4 wird dadurch zu 5, deine Phase 5 zu 6.
+
+---
+
+## 3. Die Phasen
+
+### Phase 1 – Datenbeschaffung und Speicher
+- [x] 1.1 SQLite-Datenbank. Jeder Bar trägt sein **Ende** als Zeitstempel, damit nichts vor seiner Zeit sichtbar ist
+- [x] 1.2 Yahoo: Tagesdaten seit Börsengang, dazu 5m und 1h als Modus ohne Key
+- [x] 1.3 Alpaca: 1m seit 2016, reguläre Handelszeit, split- und dividendenbereinigt
+- [x] 1.4 Aggregation: 5m, 15m, 1h, 4h, 1D, 1W, 12D, 1M, 12W, 12M
+- [x] 1.5 Live-Feed: Trades → 5-Sekunden-Bars
+- [x] 1.6 Datencheck: unmögliche Kerzen, fehlende Bars, Abweichung zwischen den Quellen
+
+**Abnahme:** `ingest META`, `check META` und `live META` laufen auf echten Daten. Erfüllt mit Alpaca: 1.059.314 1m-Bars, keine kaputten Kerzen.
+
+### Phase 2 – Indikatoren-Schmiede
+- [x] 2.1 TA-Lib auf jedem Timeframe: RSI, MACD, Bollinger, SMA/EMA, ADX, ATR, OBV, MFI, Stochastik
+- [x] 2.2 C++-Kern `ioncore` (nanobind, MSVC, OpenMP): geht jeden Bar einzeln durch
+- [x] 2.3 Swing-Hochs/-Tiefs und Fibonacci (0,236 / 0,382 / 0,5 / 0,618 / 0,786 plus Extensions). Ein Swing zählt erst ab seiner Bestätigung
+- [x] 2.4 Scanner für die 20 Muster mit Entry, SL, TP wie im Bild; Auswertung, was zuerst getroffen wurde (Triple Barrier), und Vergleich mit einer Kontrollgruppe
+- [x] 2.5 Fraktal: rollender Hurst, DFA, Multifraktal-Breite, Lo-Test gegen Scheineffekte durch Kurzfrist-Abhängigkeit
+- [x] 2.6 Mean Reversion und Momentum: Z-Score, Bollinger %B, ADF, Variance Ratio, Halbwertszeit, 12-1-Momentum, ROC
+- [x] 2.7 Ereignisstudie: was nach jedem Signal je Timeframe und Horizont passierte. Bei META 983 Tests, deshalb Korrektur nach Benjamini-Hochberg
+
+**Abnahme:** Test mit abgeschnittenen Daten zeigt keinen Blick in die Zukunft; synthetische Muster werden erkannt; erster META-Report steht. Erfüllt: `python main.py scan META`, Ergebnis in `reports/META_phase2.md`.
+
+### Phase 3 – CUDA-Gehirn
+- [x] 3.1 PyTorch mit CUDA in `.venv`
+- [x] 3.2 Datensatz: ein Fenster je Timeframe, zeitlich sauber ausgerichtet, Skalierung nur aus Trainingsdaten
+- [x] 3.3 LSTM, GRU, Transformer, TFT: je Timeframe ein Encoder, verbunden per Cross-Timeframe-Attention, mit 5 Ausgängen. Start auf Basisrate (Richtung) und HAR-Schwankung (Spanne)
+- [x] 3.4 Training: nur Ticker gegen Universum plus Feinschliff, Mixed Precision auf der RTX 3060, Walk-Forward über 5 Testjahre, je Ziel eigene Auswahl mit Beleg (t ≥ 2)
+- [x] 3.5 Pattern-Matching: rund 4,1 Mio. Fenster, exakter Vergleich auf der GPU, Feinvergleich der Besten per DTW in C++, Ergebnis ist die Verteilung des Folgeverlaufs
+
+**Abnahme:** `torch.cuda.is_available()` ist `True`; ein eingepflanztes Muster wird wiedergefunden; eine Matching-Abfrage dauert messbar unter 5 Sekunden. Erfüllt: `python main.py train META`, Median 11 ms je Abfrage, Ergebnis in `reports/META_phase3.md`.
+
+### Phase 4 – Risiko-Säule (neu)
+- [x] 4.1 Beziehungsgraph: Ticker, Sektor, Index, Makro; Kanten für Korrelation, Beta, Lead-Lag mit Datum
+- [x] 4.2 Monte Carlo auf der GPU, mindestens 1 Mio. Pfade je Lauf:
+  - Filtered Historical Simulation: GJR-GARCH plus gezogene Residuen (Volatilitäts-Cluster, dicke Enden)
+  - Block-Bootstrap: erhält das Gedächtnis der Kursreihe
+  - Korrelierte Schocks von Markt und Sektor aus dem Graphen; Sprünge an Earnings-Terminen
+- [x] 4.3 Stresstests: Replay der schlimmsten historischen Phasen
+- [x] 4.4 Ausgabe je Horizont: VaR 95/99, CVaR, maximaler Drawdown, Wahrscheinlichkeit TP vor SL
+- [x] 4.5 VaR-Backtest nach Kupiec und Christoffersen
+
+**Abnahme:** VaR-Tests bestehen außerhalb der Trainingsdaten; Laufzeit für 1 Mio. Pfade ist gemessen. Erfüllt: `python main.py risk META`, alle 4 testbaren Kombinationen bestanden, 1 Mio. Pfade in 0,46 s, Ergebnis in `reports/META_phase4.md`.
+
+### Phase 5 – Wahrscheinlichkeits-Matrix
+- [x] 5.1 Fünf Ausgänge: Bullish/Bearish, Trend, Spanne (Quantile)
+- [x] 5.2 Purged Walk-Forward mit Embargo gleich Horizont (Vorhersagen aus Phase 3 liegen in `data/oos`); die letzten 24 Monate bleiben bis zum Schluss unangetastet
+- [x] 5.3 Stacking aus LSTM, GRU, Transformer, TFT, Matching, Mustern und Monte Carlo
+- [x] 5.4 Kalibrierung (Isotonic, Conformal, jeweils nur wo im Walk-Forward besser); lange Horizonte werden Richtung Basisrate gezogen
+- [x] 5.5 Setup- und Thesen-Report je Ticker: welche Indikatoren, Muster und Thesen hier wirklich helfen
+
+**Abnahme:** Brier Skill Score gegen die Basisrate je Horizont liegt vor; aus „70 %“ werden in Tests rund 70 % Treffer; fehlender Vorsprung wird angezeigt statt versteckt. Erfüllt mit einer Einschränkung: Die Anzeige liegt überall innerhalb der Zufallsstreuung, ist aber bei langen Horizonten kaum prüfbar und lag in beiden Prüfzeiträumen stets über der Wirklichkeit. Ablauf: `python main.py matrix META`, dann `python main.py finalcheck META`, Ergebnis in `reports/META_phase5.md`.
+
+### Phase 6 – Live-Dashboard und Overlay
+- [x] 6.1 Ticker-Eingabe, ein neuer Ticker startet die Pipeline automatisch
+- [x] 6.2 Candlesticks in allen Timeframes; Overlays: Bollinger, Fibonacci, Muster mit Entry/SL/TP, Top-Analogien, Monte-Carlo-Fächer
+- [x] 6.3 Anzeige „Meta in 7 Tagen: 68 % Bullish / 32 % Bearish“ plus Risikopanel; darüber je Horizont ein Block mit der Chance, höher zu stehen, und der typischen Bewegung nach oben und unten (Median aus Monte Carlo). Das ist Statistik, kein Kaufsignal: Solange „Richtung belegt“ fehlt, entspricht die Chance im Kern der früheren Steigquote
+- [x] 6.4 Drei Takte:
+  - **Alle 5 Sekunden:** Kurs, laufender Bar, Stack, 1 Million neue Monte-Carlo-Pfade ab dem aktuellen Kurs. Die Netze gehen mit ihrer letzten Ausgabe aus dem Nachtlauf ein (Abschnitt 9: Ihre Abweichung von der Basisrate ist nicht belastbar)
+  - **Bei Bar-Schluss:** Scanner, Matching, Mean Reversion und Momentum
+  - **Nachts/wöchentlich:** Daten-Refresh, Neutraining, Rekalibrierung
+- [x] 6.5 Prognose-Logbuch: jede Prognose wird gespeichert und später mit dem echten Kurs verglichen
+
+**Abnahme:** `python main.py run META` hält während der Handelszeit den 5-Sekunden-Takt; ein zweiter Ticker funktioniert ohne Codeänderung. Zweiter Ticker erfüllt: NVDA lief ohne tickerspezifischen Code durch und deckte dabei zwei Anzeigefehler auf, die behoben sind (Abschnitt 10). **Takt im echten Handel noch offen:** Bisher ist er nur in der Wiedergabe und bei geschlossenem Markt gemessen, frühester Termin ist 2026-11-02, 15:30 deutscher Zeit.
+
+---
+
+## 4. Abdeckung: jede Vorgabe, ihre Umsetzung
+
+### IonTrader-Notizen
+| Vorgabe | Umsetzung |
+|---|---|
+| Name „IonTrader“ | Paket `iontrader` |
+| Vorbilder Renaissance, Citadel, Two Sigma | Prinzipien: viele Signale, strenge Validierung, Trennung von Alpha und Risiko (5.2, 5.3, Phase 4) |
+| Säule Risikoanalyse (Aladdin) | Phase 4 |
+| Monte Carlo, Millionen Fälle | 4.2 |
+| Relationale/Graph-Datenbank | 1.1 und 4.1 |
+| Säule Alpha-Generierung | Phasen 2, 3, 5 |
+| C++ für schnelle Ausführung | 2.2, 2.4, 3.5 (Auflösung #4) |
+| Fraktale Markthypothese | 2.5, 3.2, 3.5, Test in 5.5 |
+| Mean Reversion und Momentum, permanent getestet | 2.6, je Bar in 6.4 |
+| Fibonacci-Retracement | 2.3 |
+| Bollinger-Bänder | 2.1, 2.6 |
+| LSTM und GRU | 3.3 |
+| Transformer und Attention | 3.3 |
+
+### Deine Phasen
+| Vorgabe | Umsetzung |
+|---|---|
+| API-Setup und 5-Sekunden-Daten | 1.2, 1.3, 1.5 (Auflösung #6, #7) |
+| Lokale Datenbank, 5m/1h/1D/1W parallel | 1.1, 1.4 |
+| RSI, MACD, Bollinger mit TA-Lib | 2.1 |
+| Fibonacci und Struktur (0,382 / 0,618) | 2.3 |
+| CUDA-Setup | 3.1 |
+| TFT oder LSTM, Multi-Timeframe | 3.3 |
+| Abgleich mit Millionen Sequenzen | 3.5 (Auflösung #1) |
+| Fünf Ausgänge: Trend und Wahrscheinlichkeit | 3.3, 5.1 |
+| Dash/Plotly, 5-Sekunden-Update, 68/32-Anzeige | 6.2 bis 6.4 |
+
+### Deine erste Nachricht und das Bild
+| Vorgabe | Umsetzung |
+|---|---|
+| Beliebiger Ticker als Eingabe | `main.py`, 6.1 |
+| Live-Overlay auf dem aktuellen Graphen | 6.2 |
+| Alle Timeframes von 5 Minuten bis 12 Tage/Wochen/Monate | 1.4 |
+| Jede Aktie individuell, bestes Setup je Aktie | 3.4, 5.5 |
+| Heavy Machine und Deep Learning, CUDA | Phase 3 |
+| Jeden einzelnen Zeitpunkt durchgehen | 2.2 |
+| Retracements, Trends, alle Indikatoren | 2.1, 2.3, 2.6 |
+| 20 Chartmuster aus dem Bild | 2.4 |
+| Was auf jede Bewegung folgte | 2.7, 3.5 |
+| PyCharm | `.venv` ist als Interpreter eingetragen |
+| Aktueller Kurs und alle 5 Sekunden die Prozente | 6.3, 6.4 |
+
+---
+
+## 5. Grenzen
+
+- **Treffsicherheit:** Einzelaktien sind schwer vorherzusagen. Forschung zu Chartbildern meldet laut Sekundärquelle 52–53 % Trefferquote über einen Monat. IonTrader misst den eigenen Vorsprung, er garantiert keinen.
+- **Vorbilder:** Interne Systeme von Renaissance, Citadel und Two Sigma sind nicht öffentlich. Ihr Vorsprung beruht auch auf Daten und Handelskosten, die wir nicht nachbauen können.
+- **Keine Orders:** IonTrader ist ein Analysewerkzeug und handelt nicht.
+- **Geltungsbereich:** vorerst nur US-Aktien; Zeitraster und Alpaca sind darauf ausgelegt.
+
+---
+
+## 6. Befunde aus Phase 2 (META, 2016 bis 2026)
+
+Diese Befunde gelten für META und für Einzelsignale ohne Handelskosten. Kombinationen mehrerer Signale prüft erst Phase 3, andere Ticker sind noch nicht getestet.
+
+| These | Ergebnis | Folge für den Plan |
+|---|---|---|
+| Chartmuster sagen die Richtung voraus | 0 von 87 Muster-Timeframe-Kombinationen schlagen die Kontrollgruppe; Trefferquoten liegen fast überall am Break-even | Muster bleiben Eingabe für die Modelle, ihr Beitrag wird in 5.5 gemessen |
+| Indikatoren und Fibonacci sagen die Richtung voraus | 0 von 983 Tests nach FDR; ohne Korrektur 39 Treffer, bei Zufall rund 49 | Wie oben |
+| Märkte haben Gedächtnis (Richtung) | H rund 0,5, Lo-Test auf keinem Timeframe signifikant | Richtungs-Prozente werden nahe an der Basisrate liegen, bis ein Modell das Gegenteil außerhalb der Trainingsdaten belegt |
+| Märkte haben Gedächtnis (Schwankung) | H 0,71 bis 0,84, Lo-Test auf allen 9 Timeframes signifikant | **Stärkstes Signal bisher.** Es stützt die Risiko-Säule und die Spannen in der Matrix |
+| Hurst schaltet zwischen Mean Reversion und Momentum | 1 von 28 Vergleichen, also Zufallsniveau | Hurst bleibt Eingabe, aber kein fester Schalter |
+| Mean Reversion ist häufig | ADF-Stationarität in 2 bis 6 % der Fenster, nur bei 1m rund 10 % (bei Zufall rund 5 %) | Kein allgemeiner Umkehr-Effekt ab 5m |
+
+## 7. Befunde aus Phase 3 (META, Testjahre 2019-11 bis 2024-10)
+
+Gemessen im Walk-Forward: Training, Auswahl und Test überlappen nie. Geprüft wurde eine Konfiguration je Modelltyp ohne Hyperparameter-Suche, die letzten 2 Jahre sind weiterhin unangetastet.
+
+| Frage | Ergebnis | Folge für den Plan |
+|---|---|---|
+| Schlagen die Netze die Basisrate bei der Richtung? | Nein. Kein Modell und kein Horizont liegt mit dem 95 %-Intervall über null; einige liegen klar darunter | Die Matrix bleibt nahe an der Basisrate, Stacking in 5.3 muss das Gegenteil erst belegen |
+| Hilft das Universum? | Kein messbarer Vorteil gegenüber nur META | Modus bleibt im Vergleich, Mehrwert ist nicht belegt |
+| Hilft das Matching bei der Richtung? | Nein, -0,2 bis -0,9 % Brier Skill | Bleibt für Analogien und Overlay, in 5.3 ohne Vorschuss |
+| Lässt sich die Spanne vorhersagen? | Ja. HAR schlägt feste Quantile bei 1 Tag, 7 Tagen und 1 Monat belegbar (+3,5 / +2,7 / +3,8 %) | **Risiko-Säule und Spannen haben das stärkste Fundament** |
+| Schlagen die Netze HAR bei der Spanne? | Nein, kein Intervall liegt über null | Siehe Abschnitt 8: Monte Carlo schlägt HAR |
+
+## 8. Befunde aus Phase 4 (META, Backtest 2016-01 bis 2024-10)
+
+Das Modell wurde für jeden Handelstag nur mit der Vergangenheit neu geschätzt. Die letzten 2 Jahre sind weiterhin unangetastet.
+
+| Frage | Ergebnis | Folge für den Plan |
+|---|---|---:|
+| Stimmen die VaR-Werte? | Ja, bei 1 Tag (95 und 99), 7 Tagen (95) und 1 Monat (95): Kupiec und Christoffersen bestanden | Risikozahlen bis 1 Monat dürfen im Dashboard als geprüft gelten |
+| Sind die VaR-Werte für 6 Monate und 1 Jahr belegt? | Nein, zu wenige unabhängige Zeiträume; 2 Treffer bei 0,9 bzw. 0,4 erwarteten deuten auf eher zu kleines Risiko | Im Dashboard als nicht belegt kennzeichnen |
+| FHS oder Block-Bootstrap? | FHS ist bei der Spanne auf allen Horizonten besser (1 Tag +6,45 % gegen +1,73 % zu festen Quantilen) | FHS ist das Standardverfahren |
+| Schlägt Monte Carlo HAR bei der Spanne? | Ja, belastbar bis 1 Monat (+2,5 / +4,0 / +4,1 %); bei 6 Monaten und 1 Jahr nur wenige unabhängige Zeiträume | **FHS wird die Basis der Spannen in der Matrix** |
+| Sagt Monte Carlo die Richtung voraus? | Nein, kein Intervall liegt über null | Die Richtung bleibt nahe der Basisrate |
+| Bringt die Trennung der Earnings etwas? | Ja, ohne sie steigt der VaR 99 auf 1 Monat von -29,8 auf -34,6 %, weil Earnings die normale Schwankung verfälschen | Bleibt im Modell |
+| Gibt es Vorlauf zwischen Aktien? | Kein Beleg, alle Werte liegen im Rauschbereich der Mehrfachtests | Lead-Lag-Kanten bleiben im Graphen, aber ohne Vorschuss |
+
+## 9. Endergebnis aus Phase 5 (META)
+
+Walk-Forward 2020-10 bis 2024-10, Abschlussprüfung 2024-10 bis 2026-10. Die Modelleinstellungen wurden vor der Abschlussprüfung eingefroren. Die Regel für „Richtung belegt“ wurde danach verschärft (Vorsprung muss in beiden Zeiträumen bestehen); das macht die Aussage nur vorsichtiger.
+
+| Frage | Ergebnis | Folge für das Dashboard |
+|---|---|---|
+| Schlägt der Stack die Basisrate bei der Richtung? | Nein. Über 6 Testjahre -0,08 / +0,01 / -0,05 / +0,07 / -0,01 %, kein Intervall über null | Anzeige „Richtung nicht belegt“ auf allen Horizonten |
+| Stimmen die angezeigten Prozente? | Innerhalb der Zufallsstreuung, aber stets zu hoch: 76,2 % angezeigt gegen 56,9 % echt bei 1 Jahr (nur 6 unabhängige Zeiträume) | Lange Horizonte als wahrscheinlich zu optimistisch kennzeichnen |
+| Schlägt Monte Carlo HAR auch in der Abschlussprüfung? | Ja, belegt bei 1 Tag (+3,4 %) und 7 Tagen (+3,4 %); bei 1 Monat +1,4 % ohne Beleg | **FHS bleibt die Basis der Spannen** |
+| Bestehen die VaR-Werte die Abschlussprüfung? | Ja, alle 3 testbaren: 1 Tag (95 und 99), 7 Tage (95) | Risikozahlen bis 7 Tage sind zweifach geprüft, 1 Monat nur im Backtest |
+| Helfen Isotonic und Conformal? | Isotonic nirgends, Conformal nur bei 1 Tag und dort kaum | Conformal nur bei 1 Tag aktiv |
+| Welche Indikatoren helfen? | Richtung: 1 von 1.592 Tests, also Zufallsniveau. Schwankung: 209 von 1.592, vorn ATR, Bollinger-Breite und Abstand zur 200er-Linie | Diese Indikatoren erklären die Spanne, nicht die Richtung |
+| Weichen die Netze belastbar ab? | Nein. Zwei Läufe des aktuellen Trainings unterscheiden sich um bis zu 1 Prozentpunkt, das ist so viel wie der Abstand zur Basisrate | Netze laufen als nächtlicher Job, nicht im 5-Sekunden-Takt |
+
+**Korrektur:** Bis Phase 4 war die Zahl der unabhängigen Fälle zu hoch angegeben, weil Blöcke in Handelstagen auf Kalendertage angewendet wurden. Richtig sind über 5 Testjahre 1.255 / 260 / 61 / 10 / 5. Die Intervalle wurden neu berechnet, die Kernaussagen bleiben gleich.
+
+## 10. Ergebnis aus Phase 6 und zweiter Ticker (NVDA)
+
+NVDA lief mit den bei META eingefrorenen Regeln, seine Abschlussprüfung 2024-10 bis 2026-10 war vorher unberührt. Der Bericht steht in `reports/NVDA_phase5.md`.
+
+| Frage | Ergebnis | Folge |
+|---|---|---|
+| Hält das Dashboard den Takt? | In der Wiedergabe Ø 5,00 s, längster 5,02 s, Rechenzeit rund 800 ms bei 1 Million Pfaden. Mit Bar-Schluss in jedem Takt Ø 5,00 s. Neben dem Wochenlauf Ø 5,00 s, längster 5,09 s, Rechenzeit Ø 1.250 ms über 412 Läufe | **Im echten Handel noch nicht gemessen** |
+| Zeigt das Dashboard dieselben Zahlen wie die Matrix? | Ja, bei ruhendem Kurs auf 0,1 Prozentpunkte genau, per Test bei META und im Dashboard bei NVDA (52,8 / 58,6 / 66,0 / 82,3 / 82,0 %) | Die 5-Sekunden-Anzeige und der Report widersprechen sich nicht |
+| Laufen Hintergrund-Jobs? | Pipeline NVDA startete aus dem Dashboard, Nachtlauf META und Wochenlauf NVDA (33,8 min) liefen je einmal von Hand. Die Zeitsteuerung ist nur per Test geprüft | Ein echter Nachtlauf nach Handelsschluss steht noch aus |
+| Schlägt der Stack bei NVDA die Basisrate? | Nein. Über 6 Testjahre +0,04 / -0,13 / -0,18 / -0,57 / -0,04 %, kein Intervall über null | Dasselbe Bild wie bei META: „Richtung nicht belegt“ auf allen Horizonten |
+| Übertragen sich Muster, Fibonacci und Signale? | Nein. 0 von 92 Mustern, 0 von 140 Fibonacci-, 0 von 240 Mean-Reversion-, 0 von 220 Momentum-Tests. Gedächtnis der Schwankung dagegen auf 9 von 9 Timeframes | Die Befunde aus Abschnitt 6 gelten nun für zwei Aktien, nicht für den Markt allgemein |
+| Überträgt sich der Vorsprung von Monte Carlo gegen HAR? | **Nein.** Im Walk-Forward +0,23 / +0,27 / -0,30 %, in der Abschlussprüfung -0,94 / -1,32 / +4,15 % bei 1 Tag, 7 Tagen und 1 Monat, kein Intervall über null. Gegen feste Werte belegt nur 1 Tag (+4,47 %) | Der stärkste META-Befund ist nicht allgemein. FHS bleibt Standard, HAR ist aber nicht schlechter |
+| Bestehen die VaR-Werte? | Nur 2 von 4: 7 Tage und 1 Monat ja. 1 Tag fällt im Backtest durch (VaR 95 in 5,9 % der Fälle überschritten, p = 0,047; VaR 99 in 1,5 %), besteht aber die Abschlussprüfung (5,8 %) | Die Karte nennt den Durchfall und die gemessene Quote |
+| Stimmt die Spanne bei langen Horizonten? | Nein. Die rohe Spanne wurde nach oben viel zu oft verfehlt (6 Monate 29 %, 1 Jahr 40 %, Ziel je 10 %), nach unten kaum (9 %). Conformal weitet beide Seiten, die Untergrenze bei 1 Jahr fällt auf -94 % und passt nicht mehr zum VaR 95 von 47,5 % | Die Karte weist darauf hin. Die Regel bleibt, solange neue Daten fehlen, um eine Änderung fair zu prüfen |
+
+Der zweite Ticker hat zwei Fehler sichtbar gemacht, die bei META nie auftraten: Ein durchgefallener Backtest hieß auf der Karte „zu wenige Zeiträume“, und der Phase-4-Bericht enthielt einen fest verdrahteten Satz aus den META-Ergebnissen. Beide sind behoben.

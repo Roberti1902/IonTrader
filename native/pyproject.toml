@@ -1,0 +1,9 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "nanobind>=2"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "ioncore"
+version = "0.1.0"
+description = "C++-Rechenkern von IonTrader"
+requires-python = ">=3.12"
