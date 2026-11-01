@@ -41,6 +41,8 @@ def section(con, symbol, now):
         print(f"{symbol}: heutige Bars nicht geladen: {error}", flush=True)
     live.tick(now)
     snapshot = live.snapshot
+    if snapshot["dist"] is None:  # GPU belegt, etwa vom Nachtlauf: Dann bleibt die alte Seite stehen, statt nur Basisraten zu zeigen
+        raise SystemExit(f"{symbol}: Monte Carlo nicht gelaufen, Seite bleibt unveraendert")
     tf = "1D"
     parts = [("hero", hero(snapshot)), ("cards", chances(snapshot)), ("verdict", verdict(live, snapshot)), ("cards", [card(live, snapshot, row) for row in snapshot["rows"]]),
              ("panels", [risk_panel(snapshot), regime_panel(live, snapshot, tf), theses_panel(live), logbook_panel(live)])]
