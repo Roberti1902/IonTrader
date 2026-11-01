@@ -391,6 +391,20 @@ def test_backtest_panel_handles_missing_and_reference_rows():
     assert "Volatilität" in out and "<td>Sharpe</td>" in out and "<td>–</td>" in out, out
 
 
+def test_ranking_panel_hides_single_stocks_on_the_public_page():
+    from types import SimpleNamespace
+    from iontrader.app import ranking_panel
+    from iontrader.snapshot import to_html
+
+    assert "python main.py rank" in to_html(ranking_panel(SimpleNamespace(rank_result=pd.DataFrame())))
+    result = pd.DataFrame([{"strategie": "Momentum 12-1", "rendite": 0.1, "nach_steuer": 0.08, "sharpe": 0.5, "drawdown": -0.3, "klein": np.nan}])
+    today = pd.DataFrame([{"aktie": "ZZZZ", "faktor": "Umkehr", "rang": 1, "von": 500, "stand": "2026-10-30"}])
+    live = SimpleNamespace(rank_result=result, rank_test=pd.DataFrame({"belegt": [0], "strategie": ["Momentum 12-1"]}), rank_today=today, symbol="ZZZZ")
+    private, public = to_html(ranking_panel(live)), to_html(ranking_panel(live, public=True))
+    assert "ZZZZ" in private and "Rang 1 von 500" in private and "Keine Strategie" in private, private
+    assert "ZZZZ" not in public and "Momentum" in public, public
+
+
 def test_snapshot_writes_escaped_html_from_dash_parts():
     from dash import html
     from iontrader.snapshot import to_html

@@ -148,6 +148,30 @@ Frage: Hätte ein Signal nach Kosten und Steuern mehr gebracht als einfaches Hal
 
 **Abnahme:** Simulator besteht Tests auf Zukunftsblick, Kosten und Steuer; `python main.py backtest META` und `NVDA` liefern den Bericht, auch wenn keine Strategie gewinnt. Erfüllt: Beide laufen zusammen mit `python main.py backtest`, 12 Tests, Ergebnis in `reports/META_phase7.md` und `reports/NVDA_phase7.md`.
 
+### Phase 8 – Rangliste über viele Aktien (neu)
+
+Frage: Schlägt eine Auswahl aus dem ganzen S&P 500 nach Kosten den Index, wenn auch spätere Verlierer im Test sind? Die Regeln stehen hier **vor** dem ersten Lauf. Bilanzdaten (Profitabilität, Bewertung) und Modelle darauf kommen erst in einer eigenen Phase, weil dafür die Firmenkennungen der verschwundenen Firmen fehlen.
+
+- [x] 8.1 Universum: historische S&P-500-Mitglieder, von der heutigen Liste rückwärts aus den Änderungen rekonstruiert (Wikipedia). Tageskurse von Alpaca, bereinigt um Splits und Dividenden, ab 2016
+- [x] 8.2 Abgleich: META und SPY von Alpaca gegen die vorhandenen Yahoo-Kurse, Abweichung der Jahresrendite höchstens 1 Punkt; Tagessprünge über 60 % zählen und prüfen
+- [x] 8.3 Verschwundene Aktien: Verkauf zum letzten Schluss. War die Aktie in den letzten 21 Handelstagen über 30 % gefallen, gilt zusätzlich ein Abschlag von 30 % (Shumway 1997), sonst keiner
+- [x] 8.4 Simulator: Signal zum letzten Handelstag des Monats, Ausführung zur nächsten Eröffnung, nur Long. Kosten und Steuer wie Phase 7, Start 100.000 $. Eine Order erst ab 25 % Abweichung vom Zielgewicht, Verkauf auf null immer. Zusätzlich gerechnet mit 10.000 $ Start, weil dort die 1 $ je Order stark wirkt
+- [x] 8.5 Auswahl: nur Mitglieder am Signaltag ohne Tagessprung über 60 % im Rückblick. Kauf der besten 50 gleichgewichtet, gehalten bis außerhalb der besten 100
+- [x] 8.6 Sieben feste Strategien, Zeitraum 2017-01 bis 2026-10:
+  - Momentum 12-1: Rendite von vor 252 bis vor 21 Handelstagen
+  - Geringe Schwankung: Standardabweichung der letzten 252 Tage
+  - Kombination: Mittel der Ränge aus beiden
+  - Umkehr: Verlierer des letzten Monats
+  - Alle Mitglieder gleichgewichtet
+  - Alle Mitglieder mit Volatilitätssteuerung: je Aktie Gewicht × min(1, Median der bisherigen 21-Tage-Schwankung / heutige)
+  - SPY mit derselben Volatilitätssteuerung
+- [x] 8.7 Vergleich: Halten von SPY, zusätzlich zur Information Halten nur der heutigen Mitglieder, um die Überlebensverzerrung zu zeigen
+- [x] 8.8 Beleg: Block-Bootstrap wie Phase 7 auf Rendite- und Sharpe-Differenz vor Steuern. 14 Tests gegen SPY plus 4 Tests der beiden Volatilitäts-Strategien gegen ihre ungesteuerte Fassung, Benjamini-Hochberg über alle 18. „Belegt“ heißt q < 0,05 und positiv in 2017–2021 und in 2022–2026
+- [x] 8.9 Rang-IC je Faktor gegen die Rendite der folgenden 21 Tage, monatlich
+- [x] 8.10 Dashboard: Rang des Tickers je Faktor, Top 10 und Ergebnis; auf der öffentlichen Seite nur das Ergebnis, keine Liste einzelner Aktien
+
+**Abnahme:** Tests für Mitgliedschaft, Auswahl, Verschwinden einer Aktie, Kosten und Steuer; `python main.py rank` liefert den Bericht, auch wenn keine Strategie gewinnt. Erfüllt: 16 Tests, Ergebnis in `reports/SP500_phase8.md`.
+
 ---
 
 ## 4. Abdeckung: jede Vorgabe, ihre Umsetzung
@@ -294,3 +318,18 @@ Nach dem ersten Lauf wurden zwei Rechenfehler behoben, keine Regel: Die Rendite 
 | Halten oder Index? | META nach Steuer +12,3 %, SPY +13,0 % bei Sharpe 0,25 gegen 0,71 und Einbruch -76,7 gegen -24,5 %. NVDA +52,0 % ist mit Wissen um den Verlauf ausgewählt | Künftige Tests messen sich auch an SPY |
 
 Zwei Aktien können wenig belegen, die Intervalle sind teils 50 Punkte breit. Der nächste Schritt ist die Rangliste über viele Aktien.
+
+## 12. Ergebnis aus Phase 8 (S&P 500, 2017-01 bis 2026-10)
+
+737 Aktien mit Kursen, im Schnitt 505 Mitglieder, auch später verschwundene Firmen wie SVB. Beim Prüfen fiel auf, dass Alpaca Abspaltungen nicht bereinigt. Die Regeln blieben, alle Strategien wurden aber zusätzlich mit Yahoo-Kursen für 597 Aktien gerechnet; die Zahlen ändern sich kaum, das Urteil gar nicht. Behoben wurde außerdem eine überflüssige Order zum Jahreswechsel im Simulator.
+
+| Frage | Ergebnis | Folge |
+|---|---|---|
+| Schlägt eine Auswahl den Index belegt? | **Nein.** 0 von 18 Tests, alle q = 0,999, auch mit Yahoo-Kursen | Die Rangliste ist kein Kaufsignal |
+| Was bringen die Faktoren vor Steuern? | SPY +14,8 % p. a.; Momentum +13,3, gleichgewichtet +11,6, geringe Schwankung +9,4, Kombination +8,9, Umkehr +8,1 | Kein reiner Kursfaktor lag über SPY |
+| Haben die Faktoren Vorhersagekraft? | Rang-IC +0,001 / -0,007 / -0,001 / +0,000, t höchstens 0,3 | In diesem Zeitraum und Universum nicht messbar |
+| Wie groß ist die Überlebensverzerrung? | Nur heutige Mitglieder: +16,9 % p. a., alle damaligen: +11,6 % | Rund 5 Punkte Scheingewinn. Backtests auf heutigen Listen täuschen stark |
+| Hält die Spur aus Phase 7? | SPY mit Volatilitätssteuerung: Sharpe 0,73 gegen 0,63, Einbruch -20,2 gegen -33,8 %, aber Rendite +11,6 gegen +14,8 % und nach Steuer +8,8 gegen +12,3 %; nicht belegt. Je Aktie gesteuert schadet sie (Sharpe 0,32 gegen 0,46) | Bleibt ein Risikowerkzeug, keine Renditequelle |
+| Wie stark wirken kleine Depots? | Gleichgewichtet: +11,6 % bei 100.000 $, +7,5 % bei 10.000 $. Umkehr -1,8 %. Volatilität je Aktie: Gebühren zehren das Depot auf | Viele kleine Orders sind mit 1 $ je Order nicht tragbar |
+
+Der Zeitraum war von großen Technologiewerten geprägt, das begünstigt den nach Marktwert gewichteten Index. Momentum lag 2022–2026 +5,0 Punkte über SPY, 2017–2021 -7,6 Punkte: Das Ergebnis hängt also stark von der Marktphase ab, das Intervall reicht von -8,4 bis +5,9 Punkten. Bilanzdaten sind noch nicht getestet.

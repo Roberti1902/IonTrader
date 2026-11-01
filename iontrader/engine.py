@@ -168,6 +168,7 @@ class Live:
         tested = var[(var.verfahren == "FHS") & (var.kennzahl == "VaR 95") & (var.testbar == 1)] if len(var) else var
         self.var_tested = {r["horizont"]: r for r in tested.to_dict("records")}
         self.backtest = setup._rows(con, "backtest", s)
+        self.rank_result, self.rank_test, self.rank_today = (setup._rows(con, table, "SP500") for table in ("rank_result", "rank_test", "rank_today"))
         self.score = pd.DataFrame()
         if con.execute("SELECT 1 FROM sqlite_master WHERE name='forecast_score'").fetchone():
             self.score = pd.read_sql_query("SELECT * FROM forecast_score WHERE symbol=?", con, params=(s,))

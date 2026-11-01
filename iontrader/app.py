@@ -293,6 +293,25 @@ def backtest_panel(live):
                      html.P("Vergangenheit im selben Zeitraum, Regeln vorab festgelegt. Die Aktie wurde mit Wissen um ihren Verlauf ausgewählt, Halten von SPY ist deshalb die fairere Referenz.")], className="panel")
 
 
+def ranking_panel(live, public=False):
+    """Rang des Tickers und Top 10 nur lokal: Eine oeffentliche Liste einzelner Aktien saehe aus wie eine Empfehlung."""
+    frame = live.rank_result
+    if frame.empty:
+        return html.Div([html.H2("Rangliste S&P 500"), html.P("Noch nicht gerechnet: python main.py rank")], className="panel")
+    children = [html.H2("Rangliste S&P 500: Schlägt eine Auswahl den Index?")]
+    proven = live.rank_test[live.rank_test.belegt == 1]
+    children.append(html.P(html.Strong("Keine Strategie ist belegt besser. " if proven.empty else f"Belegt: {', '.join(sorted(set(proven.strategie)))}. ")))
+    children.append(table(["Strategie", "Rendite p. a.", "Nach Steuer", "Sharpe", "Max. Einbruch", "Mit 10.000 $"],
+                          [[r["strategie"].replace("Volatilitaet", "Volatilität"), pct(r["rendite"], 1, True), pct(r["nach_steuer"], 1, True), number(r["sharpe"]), pct(r["drawdown"]), "–" if pd.isna(r["klein"]) else pct(r["klein"], 1, True)] for r in frame.to_dict("records")]))
+    today = live.rank_today
+    if not public and not today.empty:
+        own = today[today.aktie == live.symbol]
+        children.append(html.P(f"{live.symbol} am {today.stand.iloc[0]}: " + (", ".join(f"{r['faktor']} Rang {r['rang']} von {r['von']}" for r in own.to_dict("records")) if len(own) else "nicht im S&P 500 oder ohne Rang") + ". Rang ist Statistik, kein Kaufsignal."))
+        rows = [[name, ", ".join(group.sort_values("rang").aktie.head(10))] for name, group in today.groupby("faktor")]
+        children.append(table(["Top 10 je Faktor", ""], rows, "text"))
+    return html.Div(children, className="panel")
+
+
 def clock_panel(engine, live):
     children = [html.H2("Takt und Hintergrund")]
     periods, durations = np.array(engine.periods), np.array(engine.durations)
@@ -361,7 +380,7 @@ def create(engine):
             empty = go.Figure().update_layout(paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, xaxis_visible=False, yaxis_visible=False)
             return empty, "", [], "", [], [], engine.error or f"{engine.wanted} wird geladen"
         return (chart(live, snapshot, tf, shown or []), hero(snapshot), chances(snapshot), verdict(live, snapshot), [card(live, snapshot, r) for r in snapshot["rows"]],
-                [risk_panel(snapshot), backtest_panel(live), regime_panel(live, snapshot, tf), theses_panel(live), clock_panel(engine, live), logbook_panel(live)], engine.error or waiting)
+                [risk_panel(snapshot), ranking_panel(live), backtest_panel(live), regime_panel(live, snapshot, tf), theses_panel(live), clock_panel(engine, live), logbook_panel(live)], engine.error or waiting)
 
     return app
 

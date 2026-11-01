@@ -12,10 +12,11 @@ def print_bar(bar):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IonTrader")
-    parser.add_argument("command", choices=["run", "ingest", "check", "live", "scan", "universe", "train", "risk", "matrix", "finalcheck", "pipeline", "nightly", "weekly", "snapshot", "backtest"])
+    parser.add_argument("command", choices=["run", "ingest", "check", "live", "scan", "universe", "train", "risk", "matrix", "finalcheck", "pipeline", "nightly", "weekly", "snapshot", "backtest", "rank"])
     parser.add_argument("ticker", nargs="?", default="META")
     parser.add_argument("--replay", nargs="?", type=float, const=5.0, metavar="SEKUNDEN", help="run: spielt den letzten Handelstag ab, SEKUNDEN je Minute")
     parser.add_argument("--no-browser", action="store_true", help="run: Browser nicht selbst oeffnen")
+    parser.add_argument("--cached", action="store_true", help="rank: vorhandene Kurse nutzen statt neu zu laden")
     parser.add_argument("--push", action="store_true", help="snapshot: Seite danach zu GitHub hochladen")
     args = parser.parse_args()
 
@@ -34,6 +35,11 @@ if __name__ == "__main__":
         from iontrader.app import known_tickers
 
         backtest.run(known_tickers())
+        exit_now()
+    elif args.command == "rank":
+        from iontrader import exit_now, ranking
+
+        ranking.run(refresh=not args.cached)
         exit_now()
     elif args.command == "snapshot":
         from iontrader import exit_now, snapshot

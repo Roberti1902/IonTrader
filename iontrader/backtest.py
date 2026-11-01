@@ -112,13 +112,13 @@ def cash_return(rate):
     return np.log1p(rate[:-1] / DAYS_PER_YEAR)
 
 
-def stats(gross, net, rate):
+def stats(gross, net, rate, capital=CAPITAL):
     """Alles vor Steuern aus gross; nur Endwert und Steuer aus net, dem Lauf mit Steuerzahlungen."""
     ret = np.diff(np.log(gross.nav))
     excess = ret - cash_return(rate)
     peak = np.maximum.accumulate(gross.nav)
     years = len(gross.nav) / DAYS_PER_YEAR
-    return {"rendite": float((gross.final_after_tax / CAPITAL) ** (1 / years) - 1), "nach_steuer": float((net.final_after_tax / CAPITAL) ** (1 / years) - 1), "schwankung": float(ret.std() * np.sqrt(DAYS_PER_YEAR)),
+    return {"rendite": float((gross.final_after_tax / capital) ** (1 / years) - 1), "nach_steuer": float((net.final_after_tax / capital) ** (1 / years) - 1), "schwankung": float(ret.std() * np.sqrt(DAYS_PER_YEAR)),
             "sharpe": float(excess.mean() / max(excess.std(), 1e-9) * np.sqrt(DAYS_PER_YEAR)), "drawdown": float((gross.nav / peak - 1).min()), "investiert": gross.exposure, "orders": gross.orders,
             "umschlag": float(gross.turnover), "kosten": float(gross.costs), "steuer": float(net.tax_paid), "endwert": float(net.final_after_tax)}
 
