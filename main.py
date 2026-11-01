@@ -12,7 +12,7 @@ def print_bar(bar):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IonTrader")
-    parser.add_argument("command", choices=["run", "ingest", "check", "live", "scan", "universe", "train", "risk", "matrix", "finalcheck", "pipeline", "nightly", "weekly", "snapshot"])
+    parser.add_argument("command", choices=["run", "ingest", "check", "live", "scan", "universe", "train", "risk", "matrix", "finalcheck", "pipeline", "nightly", "weekly", "snapshot", "backtest"])
     parser.add_argument("ticker", nargs="?", default="META")
     parser.add_argument("--replay", nargs="?", type=float, const=5.0, metavar="SEKUNDEN", help="run: spielt den letzten Handelstag ab, SEKUNDEN je Minute")
     parser.add_argument("--no-browser", action="store_true", help="run: Browser nicht selbst oeffnen")
@@ -28,6 +28,12 @@ if __name__ == "__main__":
 
         ok = {"pipeline": pipeline.run, "nightly": pipeline.nightly, "weekly": pipeline.weekly}[args.command](args.ticker)
         print(f"{args.ticker.upper()}: {args.command} {'fertig' if ok else 'abgebrochen'}", flush=True)
+        exit_now()
+    elif args.command == "backtest":
+        from iontrader import backtest, exit_now
+        from iontrader.app import known_tickers
+
+        backtest.run(known_tickers())
         exit_now()
     elif args.command == "snapshot":
         from iontrader import exit_now, snapshot

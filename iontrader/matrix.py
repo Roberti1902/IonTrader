@@ -351,6 +351,33 @@ def run_walk_forward(symbol, con=None, log=None, refresh=True):
 # Abschlusspruefung auf den bisher unangetasteten 2 Jahren
 # ---------------------------------------------------------------------------
 
+def stack_history(con, symbol, config, final_folds, mc_past, mc_final):
+    """Der Stack ueber beide Pruefzeitraeume, jede Vorhersage nur aus dem, was damals bekannt war. Genutzt von Abschlusspruefung und Backtest."""
+    with np.load(OOS / f"{symbol}_stack.npz") as data:
+        past_signals = data["signals"]
+    with np.load(OOS / f"{symbol}_{KINDS[0]}_solo_final.npz") as data:
+        final_days = np.unique(data["date"])
+    final_signals = match.daily_signals(con, symbol, final_days)
+    past = load_inputs(con, symbol, "", mc_past, past_signals)
+    future = load_inputs(con, symbol, "_final", mc_final, final_signals)
+    if past.names != future.names:
+        raise ValueError("Walk-Forward und Abschlusspruefung haben unterschiedliche Quellen")
+    everything = _concat(past, future)
+    folds = [tuple(f) for f in final_folds]
+    p, active, _ = stack_folds(everything, folds)
+    # Kalibrierung und Isotonic-Entscheidung bleiben wie eingefroren
+    wf_p, wf_active, _ = stack_folds(past, [tuple(f) for f in config["folds"][1:]])
+    combined_p = np.r_[wf_p, p[len(past.date):]]
+    combined_active = np.r_[wf_active, active[len(past.date):]]
+    calibrated = calibrate_folds(combined_p, everything, combined_active, folds)
+    final_p = combined_p.copy()
+    for h, use in enumerate(config["use_isotonic"]):
+        if use:
+            final_p[:, h] = calibrated[:, h]
+    mc_only = sigmoid(everything.base + everything.x[:, :, everything.names.index("monte carlo")])
+    return everything, final_p, combined_active, mc_only, folds
+
+
 def run_final(symbol, con=None, log=None, fresh=False):
     """Genau die eingefrorenen Einstellungen auf der unangetasteten Zeit. Das Ergebnis gilt, wie es kommt.
 
@@ -382,30 +409,9 @@ def run_final(symbol, con=None, log=None, fresh=False):
         np.savez(final_path, **mc_final)
     with np.load(OOS / f"{symbol}_mc.npz") as data:
         mc_past = {key: data[key] for key in data.files}
-    with np.load(OOS / f"{symbol}_stack.npz") as data:
-        past_days, past_signals = data["days"], data["signals"]
-    with np.load(OOS / f"{symbol}_{KINDS[0]}_solo_final.npz") as data:
-        final_days = np.unique(data["date"])
-    final_signals = match.daily_signals(con, symbol, final_days)
-    past = load_inputs(con, symbol, "", mc_past, past_signals)
-    future = load_inputs(con, symbol, "_final", mc_final, final_signals)
-    if past.names != future.names:
-        raise ValueError("Walk-Forward und Abschlusspruefung haben unterschiedliche Quellen")
-    everything = _concat(past, future)
-    folds = [tuple(f) for f in final_folds]
-    p, active, weights = stack_folds(everything, folds)
-    # Kalibrierung und Isotonic-Entscheidung bleiben wie eingefroren
-    wf_p, wf_active, _ = stack_folds(past, [tuple(f) for f in config["folds"][1:]])
-    combined_p = np.r_[wf_p, p[len(past.date):]]
-    combined_active = np.r_[wf_active, active[len(past.date):]]
-    calibrated = calibrate_folds(combined_p, everything, combined_active, folds)
-    final_p = combined_p.copy()
-    for h, use in enumerate(config["use_isotonic"]):
-        if use:
-            final_p[:, h] = calibrated[:, h]
+    everything, final_p, combined_active, mc_only, folds = stack_history(con, symbol, config, final_folds, mc_past, mc_final)
     is_holdout = everything.date >= config["holdout"]
     rows = direction_rows(final_p, everything, is_holdout, "Stack")
-    mc_only = sigmoid(everything.base + everything.x[:, :, everything.names.index("monte carlo")])
     rows += direction_rows(mc_only, everything, is_holdout, "Monte Carlo allein")
     frame = pd.DataFrame(rows)
     replace_rows(con, "matrix_holdout", symbol, frame)
@@ -426,7 +432,7 @@ def run_final(symbol, con=None, log=None, fresh=False):
 
     # Die aktuelle Matrix: Gewichte aus allem, was heute bekannt ist
     today = last_day + 1
-    p_all, _, weights_now = stack_folds(everything, [(today, today + 1)])
+    _, _, weights_now = stack_folds(everything, [(today, today + 1)])
     w_now = weights_now[today]
     summary = pd.DataFrame(w_now, columns=everything.names, index=HORIZON_NAMES)
     current = current_matrix(con, symbol, panel, target, everything.names, w_now, frame, both_mc, config, log)

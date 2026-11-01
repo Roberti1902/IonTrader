@@ -127,6 +127,27 @@ Daraus folgen drei Querverbindungen:
 
 **Abnahme:** `python main.py run META` hält während der Handelszeit den 5-Sekunden-Takt; ein zweiter Ticker funktioniert ohne Codeänderung. Zweiter Ticker erfüllt: NVDA lief ohne tickerspezifischen Code durch und deckte dabei zwei Anzeigefehler auf, die behoben sind (Abschnitt 10). **Takt im echten Handel noch offen:** Bisher ist er nur in der Wiedergabe und bei geschlossenem Markt gemessen, frühester Termin ist 2026-11-02, 15:30 deutscher Zeit.
 
+### Phase 7 – Strategie-Backtest (neu)
+
+Frage: Hätte ein Signal nach Kosten und Steuern mehr gebracht als einfaches Halten? Die Regeln stehen hier **vor** dem ersten Lauf und werden danach nicht geändert. Neue Regeln brauchen neue Daten.
+
+- [x] 7.1 Simulator: Signal zum Handelsschluss, Ausführung zur nächsten Eröffnung, nur Long, 10.000 $ Start, Cash verzinst mit ^IRX
+- [x] 7.2 Kosten: 5 Basispunkte je Seite plus 1 $ je Order; Stress mit 20 Basispunkten. Orders erst ab 5 Prozentpunkten Gewichtsänderung
+- [x] 7.3 Steuer: 26,375 % auf realisierte Gewinne je Kalenderjahr, Verlustvortrag, Depot wird am Ende verkauft. Ohne Sparerpauschbetrag und Kirchensteuer
+- [x] 7.4 Vergleich: Halten der Aktie, Halten von SPY, Cash
+- [x] 7.5 Zehn feste Strategien, jede über ihren Horizont gestaffelt, damit der Starttag kein Glück ist (Gewicht = Mittel der Signale der letzten h Handelstage):
+  - Stack über Basisrate, 1 Tag / 5 Tage / 21 Tage
+  - Monte Carlo über Basisrate, 1 Tag / 5 Tage / 21 Tage
+  - Muster netto bullisch, 5 Tage
+  - Kurs über 200-Tage-Linie
+  - 12-1-Momentum positiv, 21 Tage
+  - Volatilitätssteuerung: Gewicht = min(1, Median der bisher prognostizierten Schwankung / heutige Prognose aus FHS)
+- [x] 7.6 Zeitraum: Testjahre des Stacks, 2020-10 bis 2026-10, dazu Walk-Forward und Abschlussprüfung getrennt
+- [x] 7.7 Beleg: Block-Bootstrap (21 Tage, 5.000 Läufe) auf Rendite- und Sharpe-Differenz gegen Halten der Aktie, vor Steuern. Benjamini-Hochberg über alle Tests beider Ticker (40). „Belegt“ heißt q < 0,05 und positiv in beiden Teilzeiträumen
+- [x] 7.8 Bericht und Dashboard-Bereich, auch auf der öffentlichen Seite
+
+**Abnahme:** Simulator besteht Tests auf Zukunftsblick, Kosten und Steuer; `python main.py backtest META` und `NVDA` liefern den Bericht, auch wenn keine Strategie gewinnt. Erfüllt: Beide laufen zusammen mit `python main.py backtest`, 12 Tests, Ergebnis in `reports/META_phase7.md` und `reports/NVDA_phase7.md`.
+
 ---
 
 ## 4. Abdeckung: jede Vorgabe, ihre Umsetzung
@@ -258,3 +279,18 @@ NVDA lief mit den bei META eingefrorenen Regeln, seine Abschlussprüfung 2024-10
 | Stimmt die Spanne bei langen Horizonten? | Nein. Die rohe Spanne wurde nach oben viel zu oft verfehlt (6 Monate 29 %, 1 Jahr 40 %, Ziel je 10 %), nach unten kaum (9 %). Conformal weitet beide Seiten, die Untergrenze bei 1 Jahr fällt auf -94 % und passt nicht mehr zum VaR 95 von 47,5 % | Die Karte weist darauf hin. Die Regel bleibt, solange neue Daten fehlen, um eine Änderung fair zu prüfen |
 
 Der zweite Ticker hat zwei Fehler sichtbar gemacht, die bei META nie auftraten: Ein durchgefallener Backtest hieß auf der Karte „zu wenige Zeiträume“, und der Phase-4-Bericht enthielt einen fest verdrahteten Satz aus den META-Ergebnissen. Beide sind behoben.
+
+## 11. Ergebnis aus Phase 7 (META und NVDA, 2020-11 bis 2026-10)
+
+Nach dem ersten Lauf wurden zwei Rechenfehler behoben, keine Regel: Die Rendite enthielt fälschlich schon Steuerzahlungen, und der Zins war um einen Tag verschoben. Die Regeln aus Phase 7 blieben unverändert.
+
+| Frage | Ergebnis | Folge |
+|---|---|---|
+| Schlägt eine Strategie das Halten der Aktie belegt? | **Nein.** 0 von 40 Tests, alle q = 0,999 | Kein Signal im Dashboard als Kaufsignal ausweisen |
+| Bringen die Modellsignale nach Kosten Geld? | Stack nach Steuer: META -0,4 / -6,2 / +6,0 % p. a., NVDA +11,4 / +0,6 / +3,9 %, gegen Halten +12,3 und +52,0 % | Das Stack-Signal taugt nicht als Handelsregel |
+| Warum ist Monte Carlo so selten investiert? | Seine Steigquote liegt fast immer unter der Basisrate (META 1 Monat und NVDA 7 Tage, 1 Monat: nie investiert). Das misst den Abstand zweier Schätzungen, keine Marktlage | „Über der Basisrate“ ist bei Monte Carlo kein sinnvolles Signal. Die Regel bleibt für diesen Test stehen |
+| Lohnt Volatilitätssteuerung? | Sharpe +0,15 und +0,17, in allen Teilzeiträumen nicht negativ, untere Intervallgrenze bei -0,04 und -0,00, nach Korrektur nicht belegt. Nach Steuer META +13,1 gegen +12,3 %, NVDA +43,7 gegen +52,0 % | Beste Spur und am selben Teil des Tools, der schon die Risikotests besteht. Neu prüfen an vielen Aktien |
+| Wie stark wirken Kosten und Steuern? | Stack 1 Tag bei META: -0,4 % bei 5 Basispunkten, -14,5 % bei 20. Steuer kostet Halten rund 3 Punkte (META) und 7 Punkte (NVDA) | Tägliche Signale sind für Privatanleger kaum tragbar |
+| Halten oder Index? | META nach Steuer +12,3 %, SPY +13,0 % bei Sharpe 0,25 gegen 0,71 und Einbruch -76,7 gegen -24,5 %. NVDA +52,0 % ist mit Wissen um den Verlauf ausgewählt | Künftige Tests messen sich auch an SPY |
+
+Zwei Aktien können wenig belegen, die Intervalle sind teils 50 Punkte breit. Der nächste Schritt ist die Rangliste über viele Aktien.

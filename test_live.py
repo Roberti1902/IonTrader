@@ -378,6 +378,19 @@ def test_engine_holds_the_clock_with_a_bar_close_in_every_tick():
     torch.cuda.empty_cache()
 
 
+def test_backtest_panel_handles_missing_and_reference_rows():
+    from types import SimpleNamespace
+    from iontrader.app import backtest_panel
+    from iontrader.snapshot import to_html
+
+    assert "noch nicht gerechnet" in to_html(backtest_panel(SimpleNamespace(backtest=pd.DataFrame())))
+    base = {"rendite": 0.1, "nach_steuer": 0.08, "sharpe": 0.5, "drawdown": -0.3, "investiert": 1.0, "orders": 2}
+    frame = pd.DataFrame([{"strategie": "Halten Aktie", **base, "rendite_p": np.nan, "rendite_belegt": 0, "sharpe_belegt": 0},
+                          {"strategie": "Volatilitaet", **base, "rendite_p": 0.5, "rendite_belegt": 0, "sharpe_belegt": 1}])
+    out = to_html(backtest_panel(SimpleNamespace(backtest=frame)))
+    assert "Volatilität" in out and "<td>Sharpe</td>" in out and "<td>–</td>" in out, out
+
+
 def test_snapshot_writes_escaped_html_from_dash_parts():
     from dash import html
     from iontrader.snapshot import to_html

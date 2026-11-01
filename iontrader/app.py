@@ -280,6 +280,19 @@ def theses_panel(live):
     return html.Div([html.H2(f"Deine Thesen, gemessen an {live.symbol}"), table(["These", "Messung", "Urteil"], [list(t) for t in live.theses], "text")], className="panel")
 
 
+def backtest_panel(live):
+    frame = live.backtest
+    if frame.empty:
+        return html.Div([html.H2("Strategie-Backtest"), html.P("Für diesen Ticker noch nicht gerechnet.")], className="panel")
+    rows = []
+    for r in frame.to_dict("records"):
+        proven = "–" if pd.isna(r["rendite_p"]) else ("Rendite" if r["rendite_belegt"] else "Sharpe" if r["sharpe_belegt"] else "nein")
+        rows.append([r["strategie"].replace("Volatilitaet", "Volatilität"), pct(r["rendite"], 1, True), pct(r["nach_steuer"], 1, True), number(r["sharpe"]), pct(r["drawdown"]), pct(r["investiert"], 0), number(r["orders"], 0), proven])
+    return html.Div([html.H2("Strategie-Backtest: Was hätte das Signal nach Kosten gebracht?"),
+                     table(["Strategie", "Rendite p. a.", "Nach Steuer", "Sharpe", "Max. Einbruch", "Investiert", "Orders", "Besser als Halten belegt"], rows),
+                     html.P("Vergangenheit im selben Zeitraum, Regeln vorab festgelegt. Die Aktie wurde mit Wissen um ihren Verlauf ausgewählt, Halten von SPY ist deshalb die fairere Referenz.")], className="panel")
+
+
 def clock_panel(engine, live):
     children = [html.H2("Takt und Hintergrund")]
     periods, durations = np.array(engine.periods), np.array(engine.durations)
@@ -348,7 +361,7 @@ def create(engine):
             empty = go.Figure().update_layout(paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, xaxis_visible=False, yaxis_visible=False)
             return empty, "", [], "", [], [], engine.error or f"{engine.wanted} wird geladen"
         return (chart(live, snapshot, tf, shown or []), hero(snapshot), chances(snapshot), verdict(live, snapshot), [card(live, snapshot, r) for r in snapshot["rows"]],
-                [risk_panel(snapshot), regime_panel(live, snapshot, tf), theses_panel(live), clock_panel(engine, live), logbook_panel(live)], engine.error or waiting)
+                [risk_panel(snapshot), backtest_panel(live), regime_panel(live, snapshot, tf), theses_panel(live), clock_panel(engine, live), logbook_panel(live)], engine.error or waiting)
 
     return app
 

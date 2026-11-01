@@ -167,6 +167,7 @@ class Live:
         var = setup._rows(con, "var_backtest", s)  # Fehlt ein Horizont hier, war er nicht testbar: zu wenige Zeitraeume
         tested = var[(var.verfahren == "FHS") & (var.kennzahl == "VaR 95") & (var.testbar == 1)] if len(var) else var
         self.var_tested = {r["horizont"]: r for r in tested.to_dict("records")}
+        self.backtest = setup._rows(con, "backtest", s)
         self.score = pd.DataFrame()
         if con.execute("SELECT 1 FROM sqlite_master WHERE name='forecast_score'").fetchone():
             self.score = pd.read_sql_query("SELECT * FROM forecast_score WHERE symbol=?", con, params=(s,))
