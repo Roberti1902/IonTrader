@@ -7,7 +7,7 @@ import pandas as pd
 from dash.development.base_component import Component
 
 from . import ROOT, ingest
-from .app import backtest_panel, card, chances, fundamentals_panel, hero, known_tickers, logbook_panel, ranking_panel, regime_panel, risk_panel, theses_panel, verdict
+from .app import backtest_panel, card, chances, fundamentals_panel, hero, known_tickers, logbook_panel, paper_panel, ranking_panel, regime_panel, risk_panel, theses_panel, verdict
 from .engine import Live
 from .ingest import NY
 from .store import connect
@@ -45,7 +45,7 @@ def section(con, symbol, now):
         raise SystemExit(f"{symbol}: Monte Carlo nicht gelaufen, Seite bleibt unveraendert")
     tf = "1D"
     parts = [("hero", hero(snapshot)), ("cards", chances(snapshot)), ("verdict", verdict(live, snapshot)), ("cards", [card(live, snapshot, row) for row in snapshot["rows"]]),
-             ("panels", [risk_panel(snapshot), fundamentals_panel(live, public=True), ranking_panel(live, public=True), backtest_panel(live), regime_panel(live, snapshot, tf), theses_panel(live), logbook_panel(live)])]
+             ("panels", [risk_panel(snapshot), paper_panel(live, public=True), fundamentals_panel(live, public=True), ranking_panel(live, public=True), backtest_panel(live), regime_panel(live, snapshot, tf), theses_panel(live), logbook_panel(live)])]
     body = "".join(f'<div class="{name}">{to_html(body)}</div>' for name, body in parts)
     return f'<section id="{symbol}">' + body.replace(", alle 5 s ab dem aktuellen Kurs", ", ab dem Kurs dieser Momentaufnahme").replace("Deine Thesen", "Thesen") + "</section>"
 

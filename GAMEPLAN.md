@@ -195,6 +195,19 @@ Frage: Schlagen Bilanz- und Insiderdaten nach Kosten den Index, wenn jede Zahl e
 
 **Abnahme:** Tests für 12-Monats-Gewinn, erste Fassung, Zeitpunkt, Namensprüfung und Insiderzählung; `python main.py fundamentals` liefert den Bericht, auch wenn keine Strategie gewinnt. Erfüllt: 11 Tests, Ergebnis in `reports/SP500_phase9.md`.
 
+### Phase 10 – Musterdepot (neu)
+
+Frage: Schlagen die beiden besten Spuren aus Phase 9 den Index auch auf Daten, die beim Festlegen der Regeln noch nicht existierten? Es wird kein echtes Geld eingesetzt und keine Order gesendet.
+
+- [x] 10.1 Zwei Strategien gegen Halten von SPY: Profitabilität und Kombination, Regeln und Auswahl unverändert aus Phase 9. Sonst nichts, jede weitere Strategie käme nur über eine neue Phase dazu
+- [x] 10.2 Einmal je Monat eine Entscheidung zum letzten Handelstag des Vormonats, frisch geladene Kurse und Bilanzen, nur Daten bis zu diesem Tag. Verpasste Monate werden nicht nachgeholt
+- [x] 10.3 Eingefroren: Eine gespeicherte Entscheidung wird nie geändert. Ihr SHA-256-Fingerabdruck kommt ins öffentliche Repository, die Liste der Aktien bleibt lokal
+- [x] 10.4 Ausführung im Test: Eröffnung des ersten Handelstags nach dem Erstellen der Entscheidung, nicht nach dem Signaltag. Kosten und Steuer wie Phase 8, Start 100.000 $
+- [x] 10.5 Auswertung täglich, frühestens nach 12 Monaten ein Vergleich mit Intervall. Davor nur Gesamtrendite ohne Urteil
+- [x] 10.6 Dashboard und öffentliche Seite zeigen das Ergebnis, nur lokal auch die aktuellen Aktien
+
+**Abnahme:** Tests für Monatserkennung, Einfrieren, Ausführungstag und Fingerabdruck; `python main.py paper` friert die erste Entscheidung ein und läuft danach täglich als Windows-Aufgabe. Erste Entscheidung für 2026-10 eingefroren am 2026-11-01, 7 Tests. **Die tägliche Aufgabe ist noch nicht eingerichtet**, bis dahin muss der Befehl von Hand laufen.
+
 ---
 
 ## 4. Abdeckung: jede Vorgabe, ihre Umsetzung

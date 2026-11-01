@@ -405,6 +405,21 @@ def test_ranking_panel_hides_single_stocks_on_the_public_page():
     assert "ZZZZ" not in public and "Momentum" in public, public
 
 
+def test_paper_panel_waits_and_hides_stocks_on_the_public_page():
+    from types import SimpleNamespace
+    from iontrader.app import paper_panel
+    from iontrader.snapshot import to_html
+
+    empty = SimpleNamespace(paper_result=pd.DataFrame(), paper_held=pd.DataFrame())
+    assert "python main.py paper" in to_html(paper_panel(empty))
+    held = pd.DataFrame({"monat": ["2026-10"], "strategie": ["Kombination"], "aktie": ["ZZZZ"]})
+    waiting = SimpleNamespace(paper_result=pd.DataFrame(), paper_held=held)
+    assert "steht noch aus" in to_html(paper_panel(waiting)) and "ZZZZ" in to_html(paper_panel(waiting))
+    result = pd.DataFrame([{"strategie": "Kombination", "seit": "2026-11-02", "handelstage": 3, "rendite": 0.01, "nach_steuer": 0.01, "drawdown": -0.01, "orders": 50}])
+    running = SimpleNamespace(paper_result=result, paper_held=held)
+    assert "kein Urteil" in to_html(paper_panel(running)) and "ZZZZ" not in to_html(paper_panel(running, public=True))
+
+
 def test_snapshot_writes_escaped_html_from_dash_parts():
     from dash import html
     from iontrader.snapshot import to_html

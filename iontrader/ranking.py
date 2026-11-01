@@ -62,7 +62,12 @@ def fetch_members():
     return current, changes
 
 
-def ingest_prices(symbols, log):
+def universe_symbols(current, changes):
+    since = changes[changes.date >= pd.Timestamp("2015-06-01", tz="UTC")]
+    return sorted({*current, *since["add"].dropna(), *since["rem"].dropna(), BENCHMARK})
+
+
+def ingest_prices(symbols, log, path=PRICES):
     """Tagesbars von Alpaca in einer Datei. Enthaelt auch Aktien, die heute nicht mehr gehandelt werden."""
     from alpaca.data.enums import Adjustment
     from alpaca.data.historical import StockHistoricalDataClient
@@ -76,7 +81,7 @@ def ingest_prices(symbols, log):
         parts.append(client.get_stock_bars(StockBarsRequest(symbol_or_symbols=symbols[i:i + 100], timeframe=TimeFrame.Day, adjustment=Adjustment.ALL, start=pd.Timestamp("2016-01-01", tz="UTC"), end=end)).df)
         log(f"Kurse: {min(i + 100, len(symbols))} von {len(symbols)}")
     frame = pd.concat(parts).reset_index()[["symbol", "timestamp", "open", "close"]]
-    frame.to_pickle(PRICES)
+    frame.to_pickle(path)
     return frame
 
 
@@ -395,7 +400,7 @@ def run(con=None, log=None, refresh=True):
     log = log or (lambda text: print(text, flush=True))
     con = con or connect()
     current, changes = fetch_members()
-    symbols = sorted({*current, *changes[changes.date >= pd.Timestamp("2015-06-01", tz="UTC")]["add"].dropna(), *changes[changes.date >= pd.Timestamp("2015-06-01", tz="UTC")]["rem"].dropna(), BENCHMARK})
+    symbols = universe_symbols(current, changes)
     frame = pd.read_pickle(PRICES) if PRICES.exists() and not refresh else ingest_prices(symbols, log)
     days, open_, close = to_matrix(frame)
     members = membership(current, changes, days)

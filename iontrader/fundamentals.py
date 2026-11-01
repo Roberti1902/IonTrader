@@ -97,9 +97,9 @@ def map_ciks(symbols, current, changes, session, log):
 # Fakten
 # ---------------------------------------------------------------------------
 
-def fetch_facts(ciks, session, log):
+def fetch_facts(ciks, session, log, refresh=False):
     """Nur die benoetigten Kennzahlen je Firma, zwischengespeichert. Ein Abbruch verliert nichts."""
-    cache = pickle.loads(FACTS_FILE.read_bytes()) if FACTS_FILE.exists() else {}
+    cache = pickle.loads(FACTS_FILE.read_bytes()) if FACTS_FILE.exists() and not refresh else {}
     todo = sorted(set(ciks) - set(cache))
     for n, cik in enumerate(todo):
         response = sec_get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json", session)

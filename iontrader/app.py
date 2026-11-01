@@ -318,6 +318,26 @@ def ranking_panel(live, public=False):
     return factor_panel("Rangliste S&P 500", "rank", live.rank_result, getattr(live, "rank_test", None), getattr(live, "rank_today", None), getattr(live, "symbol", None), public)
 
 
+def paper_panel(live, public=False):
+    """Der Vorwaertstest. Die Aktien selbst nur lokal, wie bei der Rangliste."""
+    children = [html.H2("Musterdepot: kein echtes Geld, keine Orders")]
+    frame, held = live.paper_result, live.paper_held
+    if held.empty:
+        children.append(html.P("Noch keine Entscheidung eingefroren: python main.py paper"))
+        return html.Div(children, className="panel")
+    if frame.empty or "rendite" not in frame or frame.rendite.isna().all():
+        children.append(html.P(f"Entscheidung für {held.monat.iloc[0]} ist eingefroren, die erste Ausführung steht noch aus."))
+    else:
+        first = frame.iloc[0]
+        children.append(html.P(f"Seit {first['seit']}, {int(first['handelstage'])} Handelstage. Vor 12 Monaten gibt es kein Urteil, die Zahlen sind bis dahin fast nur Zufall."))
+        children.append(table(["Strategie", "Rendite gesamt", "Nach Steuer", "Max. Einbruch", "Orders"],
+                              [[umlauts(r["strategie"]), pct(r["rendite"], 1, True), pct(r["nach_steuer"], 1, True), pct(r["drawdown"]), number(r["orders"], 0)] for r in frame.to_dict("records")]))
+    if not public:
+        rows = [[umlauts(name), ", ".join(sorted(group.aktie))] for name, group in held.groupby("strategie")]
+        children.append(table([f"Aktien, Stand {held.monat.iloc[0]}", ""], rows, "text"))
+    return html.Div(children, className="panel")
+
+
 def fundamentals_panel(live, public=False):
     return factor_panel("Bilanz und Insider, S&P 500", "fundamentals", live.fund_result, live.fund_test, live.fund_today, live.symbol, public)
 
@@ -390,7 +410,7 @@ def create(engine):
             empty = go.Figure().update_layout(paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, xaxis_visible=False, yaxis_visible=False)
             return empty, "", [], "", [], [], engine.error or f"{engine.wanted} wird geladen"
         return (chart(live, snapshot, tf, shown or []), hero(snapshot), chances(snapshot), verdict(live, snapshot), [card(live, snapshot, r) for r in snapshot["rows"]],
-                [risk_panel(snapshot), fundamentals_panel(live), ranking_panel(live), backtest_panel(live), regime_panel(live, snapshot, tf), theses_panel(live), clock_panel(engine, live), logbook_panel(live)], engine.error or waiting)
+                [risk_panel(snapshot), paper_panel(live), fundamentals_panel(live), ranking_panel(live), backtest_panel(live), regime_panel(live, snapshot, tf), theses_panel(live), clock_panel(engine, live), logbook_panel(live)], engine.error or waiting)
 
     return app
 

@@ -12,7 +12,7 @@ def print_bar(bar):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="IonTrader")
-    parser.add_argument("command", choices=["run", "ingest", "check", "live", "scan", "universe", "train", "risk", "matrix", "finalcheck", "pipeline", "nightly", "weekly", "snapshot", "backtest", "rank", "fundamentals"])
+    parser.add_argument("command", choices=["run", "ingest", "check", "live", "scan", "universe", "train", "risk", "matrix", "finalcheck", "pipeline", "nightly", "weekly", "snapshot", "backtest", "rank", "fundamentals", "paper"])
     parser.add_argument("ticker", nargs="?", default="META")
     parser.add_argument("--replay", nargs="?", type=float, const=5.0, metavar="SEKUNDEN", help="run: spielt den letzten Handelstag ab, SEKUNDEN je Minute")
     parser.add_argument("--no-browser", action="store_true", help="run: Browser nicht selbst oeffnen")
@@ -35,6 +35,11 @@ if __name__ == "__main__":
         from iontrader.app import known_tickers
 
         backtest.run(known_tickers())
+        exit_now()
+    elif args.command == "paper":
+        from iontrader import exit_now, paper
+
+        paper.run(args.push)
         exit_now()
     elif args.command == "fundamentals":
         from iontrader import exit_now, fundamentals
