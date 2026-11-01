@@ -57,7 +57,7 @@ def fetch_members():
     changes = pd.read_html(io.StringIO(requests.get(WIKI + "Historical_components_of_the_S%26P_500", headers=AGENT, timeout=60).text))[0]
     changes.columns = ["date", "add", "add_name", "rem", "rem_name", "reason", "refs"]
     changes["date"] = pd.to_datetime(changes["date"], format="%B %d, %Y", errors="coerce", utc=True)
-    changes = changes.dropna(subset=["date"])[["date", "add", "rem", "reason"]]
+    changes = changes.dropna(subset=["date"])[["date", "add", "add_name", "rem", "rem_name", "reason"]]
     changes.to_csv(CHANGES, index=False)
     return current, changes
 
@@ -98,7 +98,7 @@ def yahoo_check(days, open_, close, log):
 
 def to_matrix(frame):
     """Tage mal Aktien auf dem Kalender des Index. Fehlt ein Bar, steht dort NaN."""
-    frame = frame.assign(day=pd.to_datetime(frame.timestamp, utc=True).dt.normalize())
+    frame = frame.assign(day=pd.to_datetime(frame.timestamp, utc=True).dt.normalize()).drop_duplicates(["symbol", "day"])
     days = pd.DatetimeIndex(sorted(frame.day[frame.symbol == BENCHMARK].unique()))
     open_ = frame.pivot(index="day", columns="symbol", values="open").reindex(days)
     close = frame.pivot(index="day", columns="symbol", values="close").reindex(days)
@@ -278,9 +278,9 @@ def build_targets(days, close, members):
     return targets, factors, is_member, ends
 
 
-def evaluate(days, open_, close, members, rate, today_members):
+def evaluate(days, open_, close, members, rate, today_members, builder=build_targets):
     """Alle Strategien auf demselben Fenster, mit Tests und Information."""
-    targets, factors, is_member, ends = build_targets(days, close, members)
+    targets, factors, is_member, ends = builder(days, close, members)
     first = int(ends[0])
     o, c = open_.to_numpy(dtype=float)[first:], close.to_numpy(dtype=float)[first:]
     r, years = rate[first:], days[first:].tz_convert(ingest.NY).year.to_numpy()
@@ -315,8 +315,9 @@ def evaluate(days, open_, close, members, rate, today_members):
         rows.append({"strategie": name, **row(target)})
         returns[name] = np.diff(np.log(plain(target).nav))
         versus(name, returns[name], ret_spy, BENCHMARK)
-    versus("Alle mit Volatilitaet", returns["Alle mit Volatilitaet"], returns["Alle gleichgewichtet"], "ungesteuert")
-    versus("SPY mit Volatilitaet", returns["SPY mit Volatilitaet"], ret_spy, "ungesteuert")
+    if "Alle mit Volatilitaet" in returns:  # Nur Phase 8
+        versus("Alle mit Volatilitaet", returns["Alle mit Volatilitaet"], returns["Alle gleichgewichtet"], "ungesteuert")
+        versus("SPY mit Volatilitaet", returns["SPY mit Volatilitaet"], ret_spy, "ungesteuert")
     survivor_targets = {key - first: (close.to_numpy()[key] > 0) * survivors / max(((close.to_numpy()[key] > 0) * survivors).sum(), 1) for key in ends}
     info = stats(plain(survivor_targets), plain(survivor_targets, tax=TAX), r, CAPITAL)
     tests = pd.DataFrame(tests)

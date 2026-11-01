@@ -172,6 +172,29 @@ Frage: Schlägt eine Auswahl aus dem ganzen S&P 500 nach Kosten den Index, wenn 
 
 **Abnahme:** Tests für Mitgliedschaft, Auswahl, Verschwinden einer Aktie, Kosten und Steuer; `python main.py rank` liefert den Bericht, auch wenn keine Strategie gewinnt. Erfüllt: 16 Tests, Ergebnis in `reports/SP500_phase8.md`.
 
+### Phase 9 – Bilanzdaten und Insiderkäufe (neu)
+
+Frage: Schlagen Bilanz- und Insiderdaten nach Kosten den Index, wenn jede Zahl erst ab ihrem Veröffentlichungstag zählt? Die Regeln stehen hier **vor** dem ersten Lauf.
+
+- [x] 9.1 Quellen: SEC EDGAR Company Facts (10-K, 10-Q) und Insider Transactions Data Sets. Absender mit Kontakt aus `.env`, höchstens 8 Abfragen je Sekunde
+- [x] 9.2 Firmen zuordnen: heutige Mitglieder über die Wikipedia-Kennung, frühere über Ticker und Firmennamen. Passt der Name nicht, bleibt die Firma ohne Daten. Die Abdeckung wird je Monat gemessen und berichtet, auch für verschwundene Firmen
+- [x] 9.3 Zeitpunkt: Jede Zahl zählt erst ab dem Tag nach ihrer ersten Veröffentlichung, immer in der ersten gemeldeten Fassung. Spätere Korrekturen bleiben außen vor
+- [x] 9.4 Marktwert: unbereinigter Schlusskurs von Alpaca mal zuletzt gemeldete Aktienzahl, höchstens 200 Tage alt
+- [x] 9.5 Simulator, Kosten, Steuer, Zeitraum und Auswahl (beste 50, gehalten bis außerhalb der besten 100) unverändert aus Phase 8. Ohne Wert nimmt eine Aktie nicht teil
+- [x] 9.6 Acht feste Strategien:
+  - Profitabilität: Nettogewinn der letzten 12 Monate / Bilanzsumme
+  - Gewinnrendite: Nettogewinn der letzten 12 Monate / Marktwert
+  - Buchwert: Eigenkapital / Marktwert
+  - Geringes Bilanzwachstum: niedriges Wachstum der Bilanzsumme gegen vor einem Jahr
+  - Gewinnüberraschung: Änderung des 12-Monats-Gewinns zum Quartal davor / Bilanzsumme, Meldung höchstens 92 Tage alt
+  - Insiderkäufe: Zahl verschiedener Insider mit offenem Marktkauf (Code P) in den letzten 180 Tagen, mindestens einer
+  - Kombination: Mittel der Ränge aus Profitabilität, Gewinnrendite und Momentum 12-1
+  - Modell: LightGBM auf den Rängen aller Faktoren aus Phase 8 und 9, Ziel ist der Rang der Rendite der folgenden 21 Tage. Neu gelernt jeden Januar, nur aus Monaten, deren Ergebnis vorher feststand. Einsatz ab 2019, davor Halten von SPY. Feste Einstellungen: 200 Bäume, Lernrate 0,05, 15 Blätter, mindestens 100 Fälle je Blatt, Stichprobe und Spalten 0,8, Startwert 0
+- [x] 9.7 Beleg: wie Phase 8, 16 Tests gegen SPY, Benjamini-Hochberg über diese 16. Dazu Rang-IC je Faktor
+- [x] 9.8 Dashboard wie Phase 8: lokal Rang und Top 10, öffentlich nur das Ergebnis
+
+**Abnahme:** Tests für 12-Monats-Gewinn, erste Fassung, Zeitpunkt, Namensprüfung und Insiderzählung; `python main.py fundamentals` liefert den Bericht, auch wenn keine Strategie gewinnt. Erfüllt: 11 Tests, Ergebnis in `reports/SP500_phase9.md`.
+
 ---
 
 ## 4. Abdeckung: jede Vorgabe, ihre Umsetzung
@@ -333,3 +356,17 @@ Zwei Aktien können wenig belegen, die Intervalle sind teils 50 Punkte breit. De
 | Wie stark wirken kleine Depots? | Gleichgewichtet: +11,6 % bei 100.000 $, +7,5 % bei 10.000 $. Umkehr -1,8 %. Volatilität je Aktie: Gebühren zehren das Depot auf | Viele kleine Orders sind mit 1 $ je Order nicht tragbar |
 
 Der Zeitraum war von großen Technologiewerten geprägt, das begünstigt den nach Marktwert gewichteten Index. Momentum lag 2022–2026 +5,0 Punkte über SPY, 2017–2021 -7,6 Punkte: Das Ergebnis hängt also stark von der Marktphase ab, das Intervall reicht von -8,4 bis +5,9 Punkten. Bilanzdaten sind noch nicht getestet.
+
+## 13. Ergebnis aus Phase 9 (S&P 500, 2017-01 bis 2026-10)
+
+723 von 737 Symbolen mit SEC-Kennung. Mitglieder mit Wert 89 bis 97 %, verschwundene Firmen 79 bis 86 %, Insiderkäufe 24 % (die übrigen hatten keinen Kauf). Stichproben gegen bekannte Firmen passen: AAPL Marktwert 5,0 Billionen, JPM Gesamtkapitalrendite und KGV plausibel, Zuordnung von SVB, First Republic, Twitter und Aetna richtig.
+
+| Frage | Ergebnis | Folge |
+|---|---|---|
+| Schlägt eine Bilanz- oder Insider-Strategie den Index belegt? | **Nein.** 0 von 16 Tests, alle q = 0,966 | Auch das ist kein Kaufsignal |
+| Was bringen sie vor Steuern? | SPY +14,8 %; Profitabilität +14,9, Gewinnüberraschung +13,8, Kombination +13,8, Modell +13,1, Bilanzwachstum +12,5, Buchwert +11,1, Insider +10,4, Gewinnrendite +9,8 | Profitabilität liegt gleichauf mit SPY, 2017–2021 +4,7 Punkte, 2022–2026 -4,6 Punkte |
+| Haben die Faktoren Vorhersagekraft? | Rang-IC höchstens +0,015, t höchstens 1,3 | Bei Profitabilität und Kombination eine schwache Spur, nicht belegt |
+| Hilft maschinelles Lernen? | LightGBM IC +0,001, t 0,1, kein Merkmal sticht heraus | Mehr Modell ersetzt keine Vorhersagekraft |
+| Nach Steuer? | SPY +12,3 %, Profitabilität +12,0 %, Kombination +10,7 % | Halten bleibt steuerlich im Vorteil |
+
+Stand nach den Phasen 7 bis 9: 74 vorab festgelegte Tests, keiner belegt. Der Zeitraum ist dabei immer derselbe: Weitere Backtests darauf erhöhen vor allem das Risiko eines Zufallstreffers. Neue Belege kann nur noch die Zukunft liefern (Musterdepot).
